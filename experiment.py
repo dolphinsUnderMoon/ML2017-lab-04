@@ -1,17 +1,19 @@
 import numpy as np
+from numpy import *
 import matplotlib.pyplot as plt
 
 num_users = 943
 num_items = 1682
-k = 20
+k = 8
 
-gamma = 1e-2
+gamma = 1e0
 
 
 def loss(X, u, v):
     X_minus_uvT = X - u.dot(v.T)
     loss = np.sum(X_minus_uvT * X_minus_uvT)
     loss += gamma * (np.sum(u * u) + np.sum(v * v))
+
     return loss
 
 
@@ -29,7 +31,7 @@ def compute_gradient(X, u, v, flag):
         return 2 * (math_item_1 - math_item_2 + math_item_3)
 
 
-training_max_iterations = 200
+training_max_iterations = 50
 learning_rate = 1e-4
 
 R = np.load("./ml-100k/data/u1_train.npy")
@@ -49,17 +51,27 @@ for i in range(training_max_iterations):
         '''
 
         temp = V.T.dot(V) + gamma * np.eye(k)
-        U = R.dot(V).dot(temp ** -1)
+        temp_mat = mat(temp)
+        #U = R.dot(V).dot(array(temp_mat.I))
+
+        for j in range(U.shape[1]):
+            U[j, :] = array(temp_mat.I).dot(V.T).dot(R[j, :])
+
     if i % 2 == 1:
         '''
         grad_V = compute_gradient(R, U, V, 'V')
         V -= learning_rate * grad_V
         '''
         temp = U.T.dot(U) + gamma * np.eye(k)
-        V = R.T.dot(U).dot(temp ** -1)
+        temp_mat = mat(temp)
+        #V = R.T.dot(U).dot(array(temp_mat.I))
+
+        for j in range(V.shape[1]):
+            V[j, :] = array(temp_mat.I).dot(U.T).dot(R[:, j])
 
     new_train_loss = loss(R, U, V)
     new_test_loss = loss(R_test, U, V)
+    last_testing_loss = new_test_loss
     training_losses.append(new_train_loss)
     testing_losses.append(new_test_loss)
     print(i, new_train_loss, new_test_loss)
