@@ -7,20 +7,19 @@ num_items = 1682
 
 
 def SGD():
-    k = 20
-
-    learning_rate = 1e-4
-    regularization_coefficient = 1e-2
+    k = 8
+    learning_rate = 1e-2
+    regularization_coefficient = 3e-1
 
     def loss(dataset, P, Q):
         error_square_sum = 0
-        for sample in dataset:
-            user_id, item_id, score = sample
-            error = score - P[user_id - 1, :].dot(Q[item_index, :])
-            error_square_sum += error ** 2
+        for a_sample in dataset:
+            user_id, item_id, score = a_sample
+            this_error = score - P[user_id - 1, :].dot(Q[item_index, :])
+            error_square_sum += this_error ** 2
 
-        loss = error_square_sum / dataset.shape[0] + regularization_coefficient * (np.sum(P ** 2) + np.sum(Q ** 2))
-        return loss
+        loss_temp = error_square_sum / dataset.shape[0] + regularization_coefficient * (np.sum(P ** 2) + np.sum(Q ** 2))
+        return loss_temp
 
     training_data = np.load("./ml-100k/data/u1_train_half.npy")
     testing_data = np.load("./ml-100k/data/u1_test_half.npy")
@@ -31,56 +30,32 @@ def SGD():
     training_loss_history = []
     testing_loss_history = []
 
-    iter = 0
-    max_training_iteration = 100
+    max_training_epoch = 10
 
-    delta = 10e-8
-    rho1 = 0.9
-    rho2 = 0.999
-    lr = 0.1
-    s_p, s_q = 0, 0
-    r_p, r_q = 0, 0
-    for i in range(max_training_iteration):
-        sample = training_data[np.random.randint(0, training_data.shape[0])]
-        user_index = sample[0] - 1
-        item_index = sample[1] - 1
-        real_score = sample[2]
+    training_data_size = training_data.shape[0]
+    for epoch in range(max_training_epoch):
+        for sample in training_data:
+            user_index = sample[0] - 1
+            item_index = sample[1] - 1
+            real_score = sample[2]
 
-        predict_score = P[user_index, :].dot(Q[item_index, :])
-        error = real_score - predict_score
+            predict_score = P[user_index, :].dot(Q[item_index, :])
+            error = real_score - predict_score
 
-        grad_p = -2 / training_data.shape[0] * (
-                error * Q[item_index, :] + regularization_coefficient * P[user_index, :])
-        grad_q = -2 / training_data.shape[0] * (
-                error * P[user_index, :] + regularization_coefficient * Q[item_index, :])
+            for j in range(k):
+                grad_p = -2 / training_data_size * error * Q[item_index, j] + 2 * regularization_coefficient * P[user_index, j]
+                grad_q = -2 / training_data_size * error * P[user_index, j] + 2 * regularization_coefficient * Q[item_index, j]
 
-        s_p = rho1 * s_p + (1 - rho1) * grad_p
-        r_p = rho2 * r_p + (1 - rho2) * grad_p ** 2
-        s_p_hat = s_p / (1 - rho1)
-        r_p_hat = r_p / (1 - rho2)
-        delta_p = (-learning_rate * s_p_hat) / (np.sqrt(r_p_hat) + delta)
+                P[user_index, j] -= learning_rate * grad_p
+                Q[item_index, j] -= learning_rate * grad_q
 
-        s_q = rho1 * s_q + (1 - rho1) * grad_q
-        r_q = rho2 * r_q + (1 - rho2) * grad_q ** 2
-        s_q_hat = s_q / (1 - rho1)
-        r_q_hat = r_q / (1 - rho2)
-        delta_q = (-learning_rate * s_q_hat) / (np.sqrt(r_q_hat) + delta)
+            training_loss = loss(training_data, P, Q)
+            testing_loss = loss(testing_data, P, Q)
 
-        P[user_index, :] += delta_p
-        Q[item_index, :] += delta_q
+            training_loss_history.append(training_loss)
+            testing_loss_history.append(testing_loss)
 
-        training_loss = loss(training_data, P, Q)
-        testing_loss = loss(testing_data, P, Q)
-
-        training_loss_history.append(training_loss)
-        testing_loss_history.append(testing_loss)
-        # print(iter, training_loss, testing_loss)
-
-        if iter > max_training_iteration:
-            break
-        iter += 1
-
-    return iter, training_loss_history, testing_loss_history
+    return training_loss_history, testing_loss_history
 
 
 def ALS():
@@ -147,13 +122,14 @@ def ALS():
         testing_losses.append(new_test_loss)
         # print(i, new_train_loss, new_test_loss)
 
-    return training_max_iterations, training_losses, testing_losses
+    return training_losses, testing_losses
 
 
 if __name__ == '__main__':
     plt.subplot(121)
-    ALS_max_iter, ALS_training_loss, ALS_testing_loss = ALS()
-    ALS_max_iter = np.arange(ALS_max_iter)
+    print("Running ALS ...")
+    ALS_training_loss, ALS_testing_loss = ALS()
+    ALS_max_iter = np.arange(len(ALS_training_loss))
     plt.plot(ALS_max_iter, ALS_training_loss, label='ALS training loss')
     plt.plot(ALS_max_iter, ALS_testing_loss, label='ALS testing loss')
 
@@ -162,8 +138,9 @@ if __name__ == '__main__':
     plt.legend()
 
     plt.subplot(122)
-    SGD_max_iter, SGD_training_loss, SGD_testing_loss = SGD()
-    SGD_max_iter = np.arange(SGD_max_iter)
+    print("Running SGD ...")
+    SGD_training_loss, SGD_testing_loss = SGD()
+    SGD_max_iter = np.arange(len(SGD_training_loss))
     plt.plot(SGD_max_iter, SGD_training_loss, label='SGD training loss')
     plt.plot(SGD_max_iter, SGD_testing_loss, label='SGD testing loss')
 
